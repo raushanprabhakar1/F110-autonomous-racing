@@ -13,50 +13,51 @@ class reactive_follow_gap:
     def __init__(self):
         #Topics & Subscriptions,Publishers
         lidarscan_topic = '/scan'
-        drive_topic = '/nav'
-        #drive_topic =  '/vesc/high_level/ackermann_cmd_mux/input/nav_1'
+        #drive_topic = '/nav'
+        drive_topic =  '/vesc/high_level/ackermann_cmd_mux/input/nav_1'
 
         self.lidar_sub = rospy.Subscriber( lidarscan_topic, LaserScan, self.lidar_callback, queue_size=1)
         self.drive_pub = rospy.Publisher( drive_topic, AckermannDriveStamped, queue_size=1)
  
-    @staticmethod
-    def running_mean(x,N):
-        cumsum = np.cumsum(np.insert(x,0,0))
-        return (cumsum[N:]- cumsum[:-N]) / float(N)
-
    
     def preprocess_lidar(self, ranges):
         """ Preprocess the LiDAR scan array. Expert implementation includes:
             1.Setting each value to the mean over some window
             2.Rejecting high values (eg. > 3m)       """
         n = len(ranges)
-        proc_ranges = self.running_mean(ranges, 4)
-        proc_ranges[proc_ranges < 1] = 0.0   
-
+        proc_ranges = [0]*n
+        for i in range(n):
+            proc_ranges[i] = (ranges[i] + ranges[i-1] + ranges[i-2])/3
+            if ranges[i] < 1.2:
+                proc_ranges[i] = 0
+            if ranges[i] == "nan":
+                proc_ranges[i] =  max(proc_ranges[i-1], 0)
         return proc_ranges
+
+
+
+
+
 
     def find_max_gap(self, free_space_ranges):
         """ Return the start index & end index of the max gap in free_space_ranges
         """
-
-        non_zeros= np.nonzero(free_space_ranges)
-        non_zeros = non_zeros[0]
-        #non_zeros = np.sort(non_zeros)  
-        non_zeros_2 = np.copy(non_zeros)    
-        non_zeros_2[:-1] = non_zeros[1:]
-        non_zeros_2[-1] = 0
-
-        result = non_zeros_2 - non_zeros
-
-        out = np.where(result>1)
-        # print(result)
-        if out[0].shape[0] > 0:
-            if out[0][0] +1 >= non_zeros.shape[0] - out[0][0] +1:
-                return 0, non_zeros[out[0][0]]
+        start_i,end_i, best_start, best_end = 0,0,0,0
+        for i in range(len(free_space_ranges)):
+            if free_space_ranges[i] > 0:
+                end_i += 1
             else:
-                return non_zeros[out[0][0]+1], free_space_ranges.shape[0]-1
-        else:
-            return 0, free_space_ranges.shape[0]-1
+                if end_i != start_i and end_i - start_i + 1 > best_end-best_start+1:
+                    best_start = start_i
+                    best_end = end_i
+
+                start_i = i
+                end_i = i
+
+        if end_i != start_i-1 and end_i - start_i + 1 > best_end-best_start+1:
+            best_start = start_i
+            best_end = end_i
+        return best_start, best_end
 
 
     
@@ -70,7 +71,7 @@ class reactive_follow_gap:
         """
         ranges = data.ranges
         proc_ranges = self.preprocess_lidar(ranges)
-
+        n = len(proc_ranges)
         #Find closest point to LiDAR
         index = np.argmin(proc_ranges) #  proc_ranges.index(min(proc_ranges))
         min_distance = ranges[index]
@@ -83,8 +84,8 @@ class reactive_follow_gap:
             delta_a = math.asin(0)
         elif l > r: 
             delta_a = math.asin(r/l)
-        elif l < r:
-            return
+        else:
+            delta_a = math.asin(1)
        
 
         angle_range = [data.angle_increment*index - delta_a, data.angle_increment*index + delta_a]
@@ -108,7 +109,7 @@ class reactive_follow_gap:
 
         #Publish Drive message
         drive_msg = AckermannDriveStamped()
-        angle = (best_index-540)*data.angle_increment
+        angle = (best_index-0.5*n)*data.angle_increment
         
         if abs(angle) <= 5*math.pi/180:
             velocity  = 4
@@ -129,7 +130,7 @@ class reactive_follow_gap:
         #print(angle)
         drive_msg.header.stamp = rospy.Time.now()
         drive_msg.header.frame_id = "drive"
-        drive_msg.drive.speed = 2
+        drive_msg.drive.speed = velocity
 
         drive_msg.drive.steering_angle = angle
         self.drive_pub.publish(drive_msg)
