@@ -13,8 +13,8 @@ class reactive_follow_gap:
     def __init__(self):
         #Topics & Subscriptions,Publishers
         lidarscan_topic = '/scan'
-        drive_topic = '/nav'
-        #drive_topic =  '/vesc/high_level/ackermann_cmd_mux/input/nav_1'
+        #drive_topic = '/nav'
+        drive_topic =  '/vesc/high_level/ackermann_cmd_mux/input/nav_1'
 
         self.lidar_sub = rospy.Subscriber( lidarscan_topic, LaserScan, self.lidar_callback, queue_size=1)
         self.drive_pub = rospy.Publisher( drive_topic, AckermannDriveStamped, queue_size=1)
@@ -27,9 +27,7 @@ class reactive_follow_gap:
         proc_ranges = [0]*n
         for i in range(n):
             proc_ranges[i] = (ranges[i] + ranges[i-1] + ranges[i-2])/3
-            if ranges[i] < 1.7:
-                proc_ranges[i] = 0
-            if i < 270 or i > 810:
+            if ranges[i] < 1:
                 proc_ranges[i] = 0
            
 
@@ -71,7 +69,7 @@ class reactive_follow_gap:
         min_distance = ranges[index]
 
         #Eliminate all points inside 'bubble' (set them to zero)
-        r = 0.25
+        r = 0.2
         l = ranges[index]
  
         if l == 0:
@@ -104,7 +102,7 @@ class reactive_follow_gap:
         #Publish Drive message
         drive_msg = AckermannDriveStamped()
         angle = (best_index-540)*data.angle_increment
-
+        
         if abs(angle) <= 5*math.pi/180:
             velocity  = 4
         elif abs(angle) <= 10*math.pi/180:
@@ -116,16 +114,15 @@ class reactive_follow_gap:
         else:
             velocity = 2.5
 
-        if angle >= 0.43:
-            angle =0.429
-        if angle <= -0.43:
-            angle = -0.429
+
+
+        angle = np.clip(angle, -0.43, 0.43)
 
 
         #print(angle)
         drive_msg.header.stamp = rospy.Time.now()
         drive_msg.header.frame_id = "drive"
-        drive_msg.drive.speed = velocity
+        drive_msg.drive.speed = 1
 
         drive_msg.drive.steering_angle = angle
         self.drive_pub.publish(drive_msg)

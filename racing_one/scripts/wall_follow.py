@@ -77,10 +77,7 @@ class WallFollow:
         else:
             velocity = 2.5
 
-        if angle >= 0.43:
-            angle =0.429
-        if angle <= -0.43:
-            angle = -0.429
+        angle = np.clip(angle, -0.43, 0.43)
 
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = rospy.Time.now()
