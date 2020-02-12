@@ -13,8 +13,8 @@ class reactive_follow_gap:
     def __init__(self):
         #Topics & Subscriptions,Publishers
         lidarscan_topic = '/scan'
-        #drive_topic = '/nav'
-        drive_topic =  '/vesc/high_level/ackermann_cmd_mux/input/nav_1'
+        drive_topic = '/nav'
+        #drive_topic =  '/vesc/high_level/ackermann_cmd_mux/input/nav_1'
 
         self.lidar_sub = rospy.Subscriber( lidarscan_topic, LaserScan, self.lidar_callback, queue_size=1)
         self.drive_pub = rospy.Publisher( drive_topic, AckermannDriveStamped, queue_size=1)
