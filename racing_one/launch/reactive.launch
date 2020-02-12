@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node pkg="joy" name="joy_node" type="joy_node"/>
+
+
+  <node pkg="racing_one" type="safety_node.py" name = "safety" />
+
+
+  <node pkg="racing_one" type="reactive_gap_follow.py" name = "wall_follow" />
+
+
+
+</launch>
